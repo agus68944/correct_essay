@@ -119,7 +119,7 @@
                             <div class="absolute inset-0 rounded-full border-4 border-indigo-100"></div>
                             <div class="absolute inset-0 rounded-full border-4 border-t-indigo-600 animate-spin"></div>
                         </div>
-                        <p class="text-sm font-bold text-slate-500 text-center">Gemini AI sedang menelaah jawaban...</p>
+                        <p id="loadingText" class="text-sm font-bold text-slate-500 text-center">Menghubungkan ke server AI...</p>
                     </div>
 
                     <!-- Result Section -->
@@ -160,7 +160,7 @@
     </div>
 
     <script type="module">
-        // API Key Anda
+        // API Key asli milik Anda
         const apiKey = "AIzaSyA3Ibs3GMbYn-5MSmEw1y16rU-OCAFlv6g"; 
         
         // Inisialisasi Ikon
@@ -180,6 +180,7 @@
         // Output Areas
         const resultArea = document.getElementById('resultArea');
         const loadingArea = document.getElementById('loadingArea');
+        const loadingText = document.getElementById('loadingText');
         const finalScore = document.getElementById('finalScore');
         const scoreCircle = document.getElementById('scoreCircle');
         const feedbackText = document.getElementById('feedbackText');
@@ -224,21 +225,49 @@
             }
         };
 
-        // Fungsi Panggil Gemini AI dengan AUTO-FALLBACK
+        // FUNGSI SUPER AUTO-DISCOVERY: AI yang mencari sendiri mana versi yang cocok!
         async function callGeminiAI(prompt) {
-            // Daftar model yang akan dicoba berurutan jika ada yang tidak didukung
-            const modelsToTry = ['gemini-1.5-flash', 'gemini-pro'];
+            let modelsToTry = [];
             
+            // TAHAP 1: Tanya Google model apa saja yang bisa dipakai oleh API Key ini
+            try {
+                loadingText.innerText = "Mengecek izin akses server Google...";
+                const checkUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+                const checkRes = await fetch(checkUrl);
+                
+                if (checkRes.ok) {
+                    const data = await checkRes.json();
+                    // Saring hanya model yang bisa merespons teks dan memiliki nama "gemini"
+                    modelsToTry = data.models
+                        .filter(m => m.supportedGenerationMethods.includes("generateContent") && m.name.includes("gemini"))
+                        .map(m => m.name.replace('models/', '')); // Hilangkan tulisan "models/" di depannya
+                }
+            } catch (e) {
+                console.warn("Gagal mengecek daftar model:", e);
+            }
+
+            // Jika Gagal nanya ke Google, kita pakai daftar cadangan ini
+            if (modelsToTry.length === 0) {
+                modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro'];
+            }
+
+            // Urutkan: Taruh versi 'flash' di paling atas karena lebih cepat merespons
+            modelsToTry.sort((a, b) => {
+                if (a.includes('flash') && !b.includes('flash')) return -1;
+                if (!a.includes('flash') && b.includes('flash')) return 1;
+                return 0;
+            });
+
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.2
-                }
+                generationConfig: { temperature: 0.2 } // Suhu rendah agar jawaban objektif
             };
 
             let lastErrorMessage = "";
 
+            // TAHAP 2: Coba panggil model satu per satu dari daftar
             for (const model of modelsToTry) {
+                loadingText.innerText = `Menghubungkan ke ${model}...`;
                 const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
                 
                 try {
@@ -250,43 +279,33 @@
                     
                     if (!response.ok) {
                         const errorData = await response.json();
-                        lastErrorMessage = errorData.error?.message || "Koneksi ke Google AI ditolak.";
-                        console.warn(`Mencoba model ${model} gagal:`, lastErrorMessage);
-                        
-                        // Jika "not found", abaikan error ini dan lanjut mencoba model berikutnya ('gemini-pro')
-                        if (lastErrorMessage.toLowerCase().includes("not found") || response.status === 404) {
-                            continue;
-                        }
-                        
-                        // Jika error lain (seperti API key salah total), berhenti mencoba dan tampilkan error
-                        throw new Error(lastErrorMessage);
+                        lastErrorMessage = errorData.error?.message || "Ditolak.";
+                        console.warn(`[GAGAL] Versi ${model} ditolak:`, lastErrorMessage);
+                        continue; // JANGAN MENYERAH! Lanjut coba model berikutnya
                     }
                     
+                    // JIKA BERHASIL!
                     const data = await response.json();
                     let textResult = data.candidates[0].content.parts[0].text;
                     
-                    // Membersihkan format markdown yang terkadang dibawa oleh AI (```json ... ```)
-                    textResult = textResult.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    
-                    // Pastikan kita hanya mengambil objek JSON { ... }
+                    // Bersihkan JSON jika AI menambahkan format ```json ... ```
                     const firstBrace = textResult.indexOf('{');
                     const lastBrace = textResult.lastIndexOf('}');
                     if (firstBrace !== -1 && lastBrace !== -1) {
                         textResult = textResult.substring(firstBrace, lastBrace + 1);
                     }
                     
+                    loadingText.innerText = `Berhasil memakai ${model}! Menyusun laporan...`;
                     return JSON.parse(textResult);
 
                 } catch (err) {
-                    if (err.message.toLowerCase().includes("not found")) {
-                        continue; // Lanjut ke model berikutnya
-                    }
-                    throw err; 
+                    console.warn(`[GAGAL] Error menjalankan ${model}:`, err);
+                    continue; // Lanjut ke model berikutnya
                 }
             }
             
-            // Jika semua model dalam daftar gagal
-            throw new Error(lastErrorMessage || "Semua versi AI ditolak oleh akun Google Anda.");
+            // TAHAP 3: Jika semua daftar sudah dicoba dan tidak ada yang berhasil
+            throw new Error(lastErrorMessage || "API Key Anda saat ini tidak memiliki akses ke satupun versi AI dari Google.");
         }
 
         // Proses Analisis Utama
@@ -354,7 +373,7 @@
                 
             } catch (err) {
                 // Tampilkan pesan error lengkap ke layar
-                alert("GAGAL MEMPROSES!\n\nAlasan: " + err.message);
+                alert("GAGAL MEMPROSES!\n\nAlasan: " + err.message + "\n\nPastikan API Key Anda aktif dan jaringan internet stabil.");
                 loadingArea.classList.add('hidden');
             } finally {
                 btnProses.disabled = false;

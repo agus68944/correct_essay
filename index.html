@@ -224,40 +224,69 @@
             }
         };
 
-        // Fungsi Panggil Gemini AI teroptimasi (MENGGUNAKAN VERSI PUBLIK STABIL)
+        // Fungsi Panggil Gemini AI dengan AUTO-FALLBACK
         async function callGeminiAI(prompt) {
-            // Perubahan penting: Menggunakan model gemini-1.5-flash yang dijamin jalan untuk API Key Publik
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            // Daftar model yang akan dicoba berurutan jika ada yang tidak didukung
+            const modelsToTry = ['gemini-1.5-flash', 'gemini-pro'];
             
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            skor: { type: "NUMBER" },
-                            feedback: { type: "STRING" }
-                        }
-                    }
+                    temperature: 0.2
                 }
             };
 
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            
-            // Tangkap pesan error asli dari server Google jika gagal
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error("Detail Error API:", errorData);
-                throw new Error(errorData.error?.message || "Koneksi ke Google AI ditolak.");
+            let lastErrorMessage = "";
+
+            for (const model of modelsToTry) {
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        lastErrorMessage = errorData.error?.message || "Koneksi ke Google AI ditolak.";
+                        console.warn(`Mencoba model ${model} gagal:`, lastErrorMessage);
+                        
+                        // Jika "not found", abaikan error ini dan lanjut mencoba model berikutnya ('gemini-pro')
+                        if (lastErrorMessage.toLowerCase().includes("not found") || response.status === 404) {
+                            continue;
+                        }
+                        
+                        // Jika error lain (seperti API key salah total), berhenti mencoba dan tampilkan error
+                        throw new Error(lastErrorMessage);
+                    }
+                    
+                    const data = await response.json();
+                    let textResult = data.candidates[0].content.parts[0].text;
+                    
+                    // Membersihkan format markdown yang terkadang dibawa oleh AI (```json ... ```)
+                    textResult = textResult.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    
+                    // Pastikan kita hanya mengambil objek JSON { ... }
+                    const firstBrace = textResult.indexOf('{');
+                    const lastBrace = textResult.lastIndexOf('}');
+                    if (firstBrace !== -1 && lastBrace !== -1) {
+                        textResult = textResult.substring(firstBrace, lastBrace + 1);
+                    }
+                    
+                    return JSON.parse(textResult);
+
+                } catch (err) {
+                    if (err.message.toLowerCase().includes("not found")) {
+                        continue; // Lanjut ke model berikutnya
+                    }
+                    throw err; 
+                }
             }
             
-            const data = await response.json();
-            return JSON.parse(data.candidates[0].content.parts[0].text);
+            // Jika semua model dalam daftar gagal
+            throw new Error(lastErrorMessage || "Semua versi AI ditolak oleh akun Google Anda.");
         }
 
         // Proses Analisis Utama
@@ -280,11 +309,12 @@
                 Anda adalah asisten guru profesional yang ahli dalam menilai jawaban essay siswa.
                 TUGAS ANDA:
                 1. Baca Soal.
-                2. Bandingkan Jawaban Siswa.
-                3. Jika Kunci Jawaban tersedia, gunakan sebagai parameter utama. Jika KOSONG, gunakan standar akademik Anda.
+                2. Bandingkan Jawaban Siswa dengan soal.
+                3. Jika Kunci Jawaban tersedia, gunakan sebagai parameter utama. Jika KOSONG, gunakan standar keilmuan yang benar.
                 4. Berikan SKOR (0 sampai ${maxPoin}).
-                5. Berikan FEEDBACK dalam Bahasa Indonesia: analisis kelebihan, kekurangan, dan saran konkrit.
-                6. Output HARUS JSON: { "skor": number, "feedback": string }.
+                5. Berikan FEEDBACK dalam Bahasa Indonesia: analisis kelebihan, kekurangan, dan saran perbaikan.
+                6. Output Anda HARUS berupa format JSON MURNI persis seperti format berikut ini: {"skor": 85, "feedback": "Penjelasan di sini..."}
+                JANGAN TULIS APAPUN SELAIN FORMAT JSON TERSEBUT.
             `;
 
             const userPrompt = `
@@ -324,7 +354,7 @@
                 
             } catch (err) {
                 // Tampilkan pesan error lengkap ke layar
-                alert("GAGAL MEMPROSES!\n\nAlasan: " + err.message + "\n\nJika ini terus terjadi, coba buat dan gunakan API Key dari akun Google yang berbeda.");
+                alert("GAGAL MEMPROSES!\n\nAlasan: " + err.message);
                 loadingArea.classList.add('hidden');
             } finally {
                 btnProses.disabled = false;

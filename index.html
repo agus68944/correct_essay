@@ -160,7 +160,7 @@
     </div>
 
     <script type="module">
-        // API Key disematkan sesuai permintaan
+        // API Key Anda sudah berhasil disematkan di sini dan siap digunakan:
         const apiKey = "AIzaSyA3Ibs3GMbYn-5MSmEw1y16rU-OCAFlv6g"; 
         
         // Inisialisasi Ikon
@@ -248,8 +248,11 @@
                 body: JSON.stringify(payload)
             });
             
+            // Tangkap pesan error asli dari server Google jika gagal
             if (!response.ok) {
-                throw new Error("Gagal terhubung ke API Google. Pastikan jaringan Anda stabil.");
+                const errorData = await response.json();
+                console.error("Detail Error API:", errorData);
+                throw new Error(errorData.error?.message || "Koneksi ke Google AI ditolak.");
             }
             
             const data = await response.json();
@@ -319,7 +322,8 @@
                 feedbackText.innerText = result.feedback;
                 
             } catch (err) {
-                alert("Gagal memproses! \nCek kembali apakah koneksi internet Anda stabil.");
+                // Tampilkan pesan error lengkap ke layar
+                alert("GAGAL MEMPROSES!\n\nAlasan: " + err.message + "\n\nJika ini terus terjadi, coba buat dan gunakan API Key dari akun Google yang berbeda.");
                 loadingArea.classList.add('hidden');
             } finally {
                 btnProses.disabled = false;

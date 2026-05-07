@@ -160,7 +160,7 @@
     </div>
 
     <script type="module">
-        // API Key Anda sudah berhasil disematkan di sini dan siap digunakan:
+        // API Key Anda
         const apiKey = "AIzaSyA3Ibs3GMbYn-5MSmEw1y16rU-OCAFlv6g"; 
         
         // Inisialisasi Ikon
@@ -224,9 +224,10 @@
             }
         };
 
-        // Fungsi Panggil Gemini AI teroptimasi
+        // Fungsi Panggil Gemini AI teroptimasi (MENGGUNAKAN VERSI PUBLIK STABIL)
         async function callGeminiAI(prompt) {
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            // Perubahan penting: Menggunakan model gemini-1.5-flash yang dijamin jalan untuk API Key Publik
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
             
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],

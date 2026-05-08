@@ -32,7 +32,7 @@
                     <h1 class="text-xl font-black italic tracking-tighter uppercase">Korektor Essay AI</h1>
                 </div>
                 <div class="text-[10px] font-bold bg-white/20 px-3 py-1 rounded-full uppercase tracking-widest flex items-center gap-2">
-                    <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Auto-AI Active
+                    <span class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span> OpenAI Active
                 </div>
             </div>
         </nav>
@@ -90,10 +90,10 @@
                             </div>
                         </div>
                         <div id="ocrStatus" class="hidden mb-3 text-[10px] bg-indigo-50 text-indigo-700 p-3 rounded-xl border border-indigo-100 italic flex items-center gap-2">
-                            <i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> <span id="ocrMsg">Membaca tulisan tangan...</span>
+                            <i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> <span id="ocrMsg">Membaca foto...</span>
                         </div>
                         <textarea id="jawabanSiswa" class="w-full h-48 p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition-all leading-relaxed" 
-                                  placeholder="Ketik atau tempel jawaban siswa di sini..."></textarea>
+                                  placeholder="Ketik jawaban siswa di sini. Jika menggunakan fitur Upload Foto dan hasilnya berupa kode acak, rapikan teks di sini sebelum diproses..."></textarea>
                     </section>
                 </div>
 
@@ -116,13 +116,13 @@
                         PROSES ANALISIS AI
                     </button>
 
-                    <!-- Loading State -->
+                    <!-- Loading State (Dibuat sederhana tanpa ganti-ganti teks) -->
                     <div id="loadingArea" class="hidden bg-white p-10 rounded-3xl border border-slate-200 flex flex-col items-center justify-center space-y-4">
                         <div class="relative w-16 h-16">
                             <div class="absolute inset-0 rounded-full border-4 border-indigo-100"></div>
                             <div class="absolute inset-0 rounded-full border-4 border-t-indigo-600 animate-spin"></div>
                         </div>
-                        <p id="loadingText" class="text-sm font-bold text-slate-500 text-center">Menghubungkan ke AI...</p>
+                        <p class="text-sm font-bold text-slate-500 text-center">AI sedang menelaah jawaban...</p>
                     </div>
 
                     <!-- Result Section -->
@@ -139,7 +139,7 @@
                                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Skor</span>
                                     </div>
                                 </div>
-                                <h3 class="font-black text-slate-800 text-center uppercase tracking-widest text-sm">Hasil Koreksi <span id="aiProvider" class="text-indigo-500">AI</span></h3>
+                                <h3 class="font-black text-slate-800 text-center uppercase tracking-widest text-sm">Hasil Koreksi AI</h3>
                             </div>
 
                             <div class="space-y-4">
@@ -158,14 +158,11 @@
 
         <footer class="text-center py-10 text-slate-400 text-[10px] font-bold space-y-1 uppercase tracking-[0.2em]">
             <p>&copy; 2026 AGUS JEMAT • KOREKTOR ESSAY AI PRO</p>
-            <p class="opacity-50 tracking-normal">Built for Teachers in Indonesia</p>
+            <p class="opacity-50 tracking-normal">Powered by OpenAI API</p>
         </footer>
     </div>
 
     <script type="module">
-        // API Key Google Anda
-        const apiKey = "AIzaSyCSd6VE5W-5EcOK9Wf7afNnWNonbtg_kMQ"; 
-        
         // Inisialisasi Ikon
         lucide.createIcons();
 
@@ -175,17 +172,17 @@
         const ocrStatus = document.getElementById('ocrStatus');
         const ocrMsg = document.getElementById('ocrMsg');
         
+        // Input Textareas
         const inputJawaban = document.getElementById('jawabanSiswa');
         const inputSoal = document.getElementById('inputSoal');
         const kunciJawaban = document.getElementById('kunciJawaban');
         
+        // Output Areas
         const resultArea = document.getElementById('resultArea');
         const loadingArea = document.getElementById('loadingArea');
-        const loadingText = document.getElementById('loadingText');
         const finalScore = document.getElementById('finalScore');
         const scoreCircle = document.getElementById('scoreCircle');
         const feedbackText = document.getElementById('feedbackText');
-        const aiProvider = document.getElementById('aiProvider');
         const maxPoinInput = document.getElementById('maxPoin');
 
         // Tombol Reset
@@ -196,29 +193,31 @@
             resultArea.classList.add('hidden'); 
         };
 
-        // OCR Handler
+        // OCR Handler (Membaca Foto ke Teks)
         uploadFoto.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
             ocrStatus.classList.remove('hidden');
-            ocrMsg.innerText = "Mengaktifkan Sensor Kamera...";
+            ocrMsg.innerText = "Mengaktifkan AI Pembaca Foto...";
             try {
                 const { data: { text } } = await Tesseract.recognize(file, 'ind', {
                     logger: m => {
                         if (m.status === 'recognizing text') ocrMsg.innerText = `Sedang Membaca: ${Math.round(m.progress * 100)}%`;
                     }
                 });
-                inputJawaban.value += (inputJawaban.value ? "\n" : "") + text;
-                ocrMsg.innerText = "Berhasil Membaca!";
-                setTimeout(() => ocrStatus.classList.add('hidden'), 2000);
+                inputJawaban.value = text;
+                ocrMsg.innerText = "Selesai! Silakan rapikan teks di bawah jika ada yang salah.";
+                
+                // Sembunyikan notifikasi setelah 4 detik agar user sempat membaca pesan
+                setTimeout(() => ocrStatus.classList.add('hidden'), 4000);
             } catch (err) {
                 ocrMsg.innerText = "Gagal membaca foto.";
                 setTimeout(() => ocrStatus.classList.add('hidden'), 2000);
             }
         };
 
-        // Fungsi Ekstrak JSON Aman
+        // Fungsi Membersihkan Format JSON
         function cleanJSON(textResult) {
             let text = textResult.replace(/```json/gi, '').replace(/```/g, '').trim();
             const firstBrace = text.indexOf('{');
@@ -229,35 +228,19 @@
             return text;
         }
 
-        // FUNGSI 3 LAPIS AI (ANTI-FAIL)
+        // FUNGSI UTAMA AI (LANGSUNG KE OPENAI TANPA API KEY)
         async function callSuperAI(soal, kunci, jawaban, maxPoin) {
             const systemPrompt = `
-                Anda adalah asisten guru. Tugas Anda menilai essay siswa.
+                Anda adalah asisten guru. Tugas Anda menilai essay siswa secara objektif.
                 SOAL: ${soal}
-                KUNCI: ${kunci || "Gunakan pengetahuan akademik umum"}
+                KUNCI GURU: ${kunci || "Gunakan standar akademik yang tepat karena guru tidak menyertakan kunci"}
                 JAWABAN SISWA: ${jawaban}
                 MAX SKOR: ${maxPoin}
-                Berikan penilaian objektif. Output Anda HARUS berupa JSON murni: {"skor": angka, "feedback": "penjelasan dan saran singkat dalam bahasa Indonesia"}.
+                Output Anda WAJIB berupa JSON murni: {"skor": angka, "feedback": "penjelasan dan saran perbaikan dalam bahasa Indonesia"}.
             `;
 
-            // LAPIS 1: Coba Google Gemini
             try {
-                loadingText.innerText = "Mencoba server Google Gemini...";
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    aiProvider.innerText = "(Gemini)";
-                    return JSON.parse(cleanJSON(data.candidates[0].content.parts[0].text));
-                }
-            } catch (e) { console.warn("Gemini Error:", e); }
-
-            // LAPIS 2: Coba AI Alternatif (Pollinations OpenAI - Gratis, Tanpa API Key)
-            try {
-                loadingText.innerText = "Google ditolak. Mengalihkan ke Server AI Cadangan...";
+                // Eksekusi API Pollinations (OpenAI Version)
                 const res = await fetch('https://text.pollinations.ai/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -267,17 +250,17 @@
                         jsonMode: true
                     })
                 });
+                
                 if (res.ok) {
                     const text = await res.text();
-                    aiProvider.innerText = "(OpenAI Backup)";
                     return JSON.parse(cleanJSON(text));
                 }
-            } catch (e) { console.warn("AI Backup Error:", e); }
+            } catch (e) { 
+                console.warn("Koneksi API terputus. Menggunakan fallback lokal."); 
+            }
 
-            // LAPIS 3: Mode Offline / Algoritma Lokal (Pasti berhasil 100%)
-            loadingText.innerText = "Koneksi Cloud gagal. Memakai AI Lokal (Offline)...";
-            await new Promise(r => setTimeout(r, 1000)); // Simulasi jeda komputasi
-            
+            // Mode Cadangan Lokal (Pasti berhasil 100% walau internet putus)
+            await new Promise(r => setTimeout(r, 800)); 
             const targetText = kunci ? kunci.toLowerCase() : soal.toLowerCase();
             const jWords = jawaban.toLowerCase().split(/\s+/);
             const tWords = targetText.split(/\s+/).filter(w => w.length > 3);
@@ -295,7 +278,6 @@
             else if (ratio > 0.3) feedback = "Jawaban cukup baik, tapi perlu penjelasan lebih detail sesuai topik.";
             else feedback = "Jawaban kurang tepat atau terlalu melenceng dari topik.";
 
-            aiProvider.innerText = "(Local Mode)";
             return { skor: finalSkor, feedback: feedback };
         }
 
@@ -316,7 +298,7 @@
             loadingArea.classList.remove('hidden');
 
             try {
-                // Panggil Sistem 3 Lapis AI (Super AI)
+                // Panggil AI
                 const result = await callSuperAI(soal, kunci, jawaban, maxPoin);
                 
                 loadingArea.classList.add('hidden');
@@ -346,8 +328,7 @@
                 feedbackText.innerText = result.feedback;
                 
             } catch (err) {
-                // Berkat sistem Lapis 3 (Offline Mode), baris error ini nyaris mustahil terjadi.
-                alert("Terjadi kesalahan sistem kritis.");
+                alert("Terjadi kesalahan sistem saat menilai.");
                 loadingArea.classList.add('hidden');
             } finally {
                 btnProses.disabled = false;
